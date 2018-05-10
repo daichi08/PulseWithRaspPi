@@ -25,12 +25,6 @@
 #include <math.h>
 #include <pigpiod_if2.h>
 
-#define PWMPIN1 18 //12ピン(物理)
-#define PWMPIN2 19 //35ピン(物理)
-
-#define DIRPIN1 21 //40ピン(物理)
-//#define DIRPIN2 未定
-
 #define LIMIT 200   //下限[Hz]
 #define HALF 500000 //duty50[%]
 
@@ -42,6 +36,9 @@
 int pi;
 extern int pi;
 
+static int pwmpin[2] = {18, 19};
+static int dirpin[2] = {21, 20};
+
 void delay_ms(unsigned int time_ms){
   time_sleep(((double)time_ms) / 1000.0);
 }
@@ -49,18 +46,25 @@ void delay_ms(unsigned int time_ms){
 int main(int argc, char **argv){
   int hz = 0;
   int current_hz = 0;
+  int motor_num;
   int dir = FORWARD;
   int current_dir = FORWARD;
   char c;
   pi = pigpio_start("localhost","8888");
-  set_mode(pi, PWMPIN1, PI_OUTPUT);
-  set_mode(pi, DIRPIN1, PI_OUTPUT);
+  set_mode(pi, pwmpin[0], PI_OUTPUT);
+  set_mode(pi, dirpin[0], PI_OUTPUT);
+  set_mode(pi, pwmpin[1], PI_OUTPUT);
+  set_mode(pi, dirpin[1], PI_OUTPUT);
 
   while(c != 'q'){
     do{
+      printf("which motor? 0 or 1\n");
+      scanf("%d", &motor_num);
+    }while(motor_num != 0 && motor_num != 1);
+    do{
       printf("frequency[Hz]?(more equal %d[Hz])\n",LIMIT);
       scanf("%d", &hz);
-    }while(hz < LIMIT || 4096 < hz);
+    }while(hz < LIMIT && 4096 < hz);
     printf("dir? f or r\n");
     do{
       c = getchar();
@@ -76,33 +80,33 @@ int main(int argc, char **argv){
 
     // 回転方向切替時処理
     if (dir != current_dir){
-      gpio_write(pi, DIRPIN1, current_dir);
+      gpio_write(pi, dirpin[motor_num], current_dir);
       for (int i = current_hz; i >= LIMIT; --i){
         printf("%d\n", i);
-        hardware_PWM(pi, PWMPIN1, i, HALF);
+        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
         delay_ms(DELAY);
       }
-      gpio_write(pi, DIRPIN1, dir);
+      gpio_write(pi, dirpin[motor_num], dir);
       for (int i = LIMIT; i <= hz; ++i){
         printf("%d\n", i);
-        hardware_PWM(pi, PWMPIN1, i, HALF);
+        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
         delay_ms(DELAY);
       }
       current_hz = hz;
     }
 
     // 通常回転時
-    gpio_write(pi, DIRPIN1, dir);
+    gpio_write(pi, dirpin[motor_num], dir);
     if (current_hz < hz){
       for (int i = current_hz; i <= hz; ++i){
         printf("%d\n", i);
-        hardware_PWM(pi, PWMPIN1, i, HALF);
+        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
         delay_ms(DELAY);
       }
     }else if(hz < current_hz){
       for (int i = current_hz; i >= hz; --i){
         printf("%d\n", i);
-        hardware_PWM(pi, PWMPIN1, i, HALF);
+        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
         delay_ms(DELAY);
       }     
     }
@@ -113,18 +117,22 @@ int main(int argc, char **argv){
   if (c == 'q'){
     for (int i = current_hz; i >= LIMIT; --i){
       printf("%d\n", i);
-      hardware_PWM(pi, PWMPIN1, i, HALF);
+      hardware_PWM(pi, pwmpin[motor_num], i, HALF);
       delay_ms(DELAY);
     }
   }
 
   // 出力信号の停止
-  hardware_PWM(pi, PWMPIN1, 0, 0);
-  gpio_write(pi, DIRPIN1, PI_LOW);
+  hardware_PWM(pi, pwmpin[0], 0, 0);
+  gpio_write(pi, dirpin[0], PI_LOW);
+  hardware_PWM(pi, pwmpin[1], 0, 0);
+  gpio_write(pi, dirpin[1], PI_LOW);
 
   // PINOUT -> PININ
-  set_mode(pi, PWMPIN1, PI_INPUT);
-  set_mode(pi, DIRPIN1, PI_INPUT);
+  set_mode(pi, pwmpin[0], PI_INPUT);
+  set_mode(pi, dirpin[0], PI_INPUT);
+  set_mode(pi, pwmpin[1], PI_INPUT);
+  set_mode(pi, dirpin[1], PI_INPUT);
 
   // 終了
   pigpio_stop(pi);
