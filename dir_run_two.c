@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <pigpiod_if2.h>
+#include <stdbool.h>
 
 #define LIMIT 200   //下限[Hz]
 #define HALF 500000 //duty50[%]
@@ -54,6 +55,7 @@ int main(int argc, char **argv){
   int dir[2]         = {FORWARD,FORWARD};
   int current_dir[2] = {FORWARD,FORWARD};
   int motor_num;
+  bool diff_flg[2] = {false,false};
   char c;
 
   pi = pigpio_start("localhost","8888");
@@ -76,8 +78,8 @@ int main(int argc, char **argv){
         scanf("%d", &hz[motor_num]);
       }while(hz[motor_num] < LIMIT || 4096 < hz[motor_num]);
       
+      printf("dir? f or r or q\n");
       do{
-        printf("dir? f or r\n");
         c = getchar();
       }while(c != 'f' && c != 'r' && c != 'q' );
 
@@ -86,9 +88,9 @@ int main(int argc, char **argv){
       else break;
 
     }else{
+      printf("where to go? a or b or r or l or q\n");
       do{
         c = getchar();
-        printf("where to go? a or b or r or l\n");
       }while(c != 'a' && c != 'b' && c != 'r' && c != 'l' && c != 'q');
 
       do{
@@ -113,8 +115,49 @@ int main(int argc, char **argv){
         break;
       }
     }
+
     printf("hz[0] = %d,hz[1] = %d\n", hz[0],hz[1]);
     printf("dir[0] = %d, dir[1] = %d\n", dir[0],dir[1]);
+    
+    for (int i = 0; i < 2; i++){
+      if (dir[i] != current_dir[i]){
+        diff_flg[i] = true;
+      }
+    }
+    
+    if(diff_flg[0] == true){
+      gpio_write(pi, dirpin[0], current_dir[0]);
+      hardware_PWM(pi, dirpin[0], current_hz[0], HALF);
+      current_hz[0] -= 1;
+      if(current_hz[0] <= LIMIT) diff_flg[0] = false;
+    }else{
+      if(current_hz[0] < hz[0]){
+        gpio_write(pi, dirpin[0], dir[0]);
+        hardware_PWM(pi, pwmpin[0], current_hz[0], HALF);
+        if(current_hz[0] < hz[0]) current_hz[0] += 1;
+      }else{
+        gpio_write(pi, dirpin[0], dir[0]);
+        hardware_PWM(pi, pwmpin[0], current_hz[0], HALF);
+        if(current_hz[0] > hz[0]) current_hz[0] -= 1;
+      }
+    }
+
+    if(diff_flg[1] == true){
+      gpio_write(pi, dirpin[1], current_dir[1]);
+      hardware_PWM(pi, dirpin[1], current_hz[1], HALF);
+      current_hz[1] -= 1;
+      if(current_hz[1] <= LIMIT) diff_flg[1] = false;
+    }else{
+      if(current_hz[1] < hz[1]){
+        gpio_write(pi, dirpin[1], dir[1]);
+        hardware_PWM(pi, pwmpin[1], current_hz[1], HALF);
+        if(current_hz[1] < hz[1]) current_hz[1] += 1;
+      }else{
+        gpio_write(pi, dirpin[1], dir[1]);
+        hardware_PWM(pi, pwmpin[1], current_hz[1], HALF);
+        if(current_hz[1] > hz[1]) current_hz[1] -= 1;
+      }
+    }
   }
 
 
