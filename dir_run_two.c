@@ -37,90 +37,86 @@ int pi;
 extern int pi;
 
 static int pwmpin[2] = {18, 19};
-static int dirpin[2] = {21, 20};
+static int dirpin[2] = {20, 21};
+
+static int advance[2]    = {FORWARD, REVERSAL};
+static int backspace[2]  = {REVERSAL, FORWARD};
+static int turn_right[2] = {FORWARD, FORWARD};
+static int turn_left[2]  = {REVERSAL, REVERSAL};
 
 void delay_ms(unsigned int time_ms){
   time_sleep(((double)time_ms) / 1000.0);
 }
 
 int main(int argc, char **argv){
-  int hz = 0;
-  int current_hz = 0;
+  int hz[2]          = {0,0};
+  int current_hz[2]  = {0,0};
+  int dir[2]         = {FORWARD,FORWARD};
+  int current_dir[2] = {FORWARD,FORWARD};
   int motor_num;
-  int dir = FORWARD;
-  int current_dir = FORWARD;
   char c;
+
   pi = pigpio_start("localhost","8888");
+
   set_mode(pi, pwmpin[0], PI_OUTPUT);
   set_mode(pi, dirpin[0], PI_OUTPUT);
   set_mode(pi, pwmpin[1], PI_OUTPUT);
   set_mode(pi, dirpin[1], PI_OUTPUT);
+  delay_ms(50);
 
   while(c != 'q'){
     do{
-      printf("which motor? 0 or 1\n");
+      printf("which motor? 0 or 1 or 2\n");
       scanf("%d", &motor_num);
-    }while(motor_num != 0 && motor_num != 1);
-    do{
-      printf("frequency[Hz]?(more equal %d[Hz])\n",LIMIT);
-      scanf("%d", &hz);
-    }while(hz < LIMIT && 4096 < hz);
-    printf("dir? f or r\n");
-    do{
-      c = getchar();
-    }while(c != 'f' && c != 'r' && c != 'q' );
+    }while(motor_num != 0 && motor_num != 1 && motor_num != 2);
 
-    if (c == 'f'){
-      dir = FORWARD;
-    }else if(c == 'r'){
-      dir = REVERSAL;
+    if(motor_num != 2){
+      do{
+        printf("frequency[Hz]?(more equal %d[Hz])\n",LIMIT);
+        scanf("%d", &hz[motor_num]);
+      }while(hz[motor_num] < LIMIT || 4096 < hz[motor_num]);
+      
+      do{
+        printf("dir? f or r\n");
+        c = getchar();
+      }while(c != 'f' && c != 'r' && c != 'q' );
+
+      if (c == 'f') dir[motor_num] = FORWARD;
+      else if (c == 'r') dir[motor_num] = REVERSAL;
+      else break;
+
     }else{
-      break;
-    }
+      do{
+        c = getchar();
+        printf("where to go? a or b or r or l\n");
+      }while(c != 'a' && c != 'b' && c != 'r' && c != 'l' && c != 'q');
 
-    // 回転方向切替時処理
-    if (dir != current_dir){
-      gpio_write(pi, dirpin[motor_num], current_dir);
-      for (int i = current_hz; i >= LIMIT; --i){
-        printf("%d\n", i);
-        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
-        delay_ms(DELAY);
-      }
-      gpio_write(pi, dirpin[motor_num], dir);
-      for (int i = LIMIT; i <= hz; ++i){
-        printf("%d\n", i);
-        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
-        delay_ms(DELAY);
-      }
-      current_hz = hz;
-    }
+      do{
+        printf("frequency[Hz]?(more equal %d[Hz])\n",LIMIT);
+        scanf("%d", &hz[0]);
+      }while(hz[0] < LIMIT || 4096 < hz[0]);
+      hz[1] = hz[0];
 
-    // 通常回転時
-    gpio_write(pi, dirpin[motor_num], dir);
-    if (current_hz < hz){
-      for (int i = current_hz; i <= hz; ++i){
-        printf("%d\n", i);
-        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
-        delay_ms(DELAY);
+      if(c == 'a'){
+        dir[0] = advance[0];
+        dir[1] = advance[1];
+      }else if(c == 'b'){
+        dir[0] = backspace[0];
+        dir[1] = backspace[1];
+      }else if(c == 'r'){
+        dir[0] = turn_right[0];
+        dir[1] = turn_right[1];
+      }else if(c == 'l'){
+        dir[0] = turn_left[0];
+        dir[1] = turn_left[1];
+      }else{
+        break;
       }
-    }else if(hz < current_hz){
-      for (int i = current_hz; i >= hz; --i){
-        printf("%d\n", i);
-        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
-        delay_ms(DELAY);
-      }     
     }
-    current_hz = hz;
-    current_dir = dir;
+    printf("hz[0] = %d,hz[1] = %d\n", hz[0],hz[1]);
+    printf("dir[0] = %d, dir[1] = %d\n", dir[0],dir[1]);
   }
 
-  if (c == 'q'){
-    for (int i = current_hz; i >= LIMIT; --i){
-      printf("%d\n", i);
-      hardware_PWM(pi, pwmpin[motor_num], i, HALF);
-      delay_ms(DELAY);
-    }
-  }
 
   // 出力信号の停止
   hardware_PWM(pi, pwmpin[0], 0, 0);
