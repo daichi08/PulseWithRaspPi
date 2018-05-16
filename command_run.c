@@ -26,11 +26,13 @@
 #include <pigpiod_if2.h>
 #include <stdbool.h>
 
-#define LIMIT 200   //下限[Hz]
-#define HALF 500000 //duty50[%]
-
+//モータの回転方向用
 #define FORWARD  PI_LOW  //正転
 #define REVERSAL PI_HIGH  //逆転
+
+//モータ用
+#define DIR 0
+#define SPEED 1
 
 //command用
 #define DRIVE 0
@@ -38,7 +40,11 @@
 #define LEFT  2
 #define RIGHT 3
 
+//もろもろ
+#define LIMIT 250 //下限[Hz]
+#define HALF 500000 //duty50[%]
 #define DELAY 5 //[ms]
+
 
 int pi;
 extern int pi;
@@ -52,24 +58,31 @@ void delay_ms(unsigned int time_ms){
 
 int main(int argc, char **argv){
   static int command_dir[4][2] = {
-    {FORWARD,  FORWARD }, //前進
-    {REVERSAL, REVERSAL}, //後退
-    {FORWARD,  REVERSAL}, //左回転
+    {REVERSAL, FORWARD}, //前進
+    {FORWARD, REVERSAL}, //後退
+    {REVERSAL, FORWARD}, //左回転
     {REVERSAL, FORWARD}  //右回転
   };
+
   static int command_speed[4][2] = {
-    {300, 300}, //前進
-    {300, 300}, //後退
-    {200, 400}, //左回転
-    {400, 200}  //右回転
+    {500, 500}, //前進
+    {500, 500}, //後退
+    {300, 450}, //左回転
+    {450, 300}  //右回転
+  };
+
+  //現在の回転方向と回転速度をまとめた配列
+  int motor[2][2] = {
+    {FORWARD,LIMIT},
+    {FORWARD,LIMIT}
   };
 
   int command;
+  int precommand;
   int dir[2];
-  int speed[2] = {LIMIT, LIMIT};
-  int current_dir[2];
-  int current_speed[2] = {0, 0};
+  int speed[2] = {0, 0};
   bool runnning_flg = false;
+  bool inverse_flg = false;
   char c;
 
   pi = pigpio_start("localhost","8888");
@@ -101,31 +114,87 @@ int main(int argc, char **argv){
       default:
         break;
     }
+    if(c != 'q'){
+      dir[0] = command_dir[command][0];
+      dir[1] = command_dir[command][1];
+      speed[0] = command_speed[command][0];
+      speed[1] = command_speed[command][1];
 
-    dir[0]   = command_dir[command][0];
-    dir[1]   = command_dir[command][1];
-    speed[0] = command_speed[command][0];
-    speed[1] = command_speed[command][1];
+      if(runnning_flg == false){
+        motor[0][DIR] = dir[0];
+        motor[1][DIR] = dir[1];
+        precommand = command;
+        runnning_flg = true;
+      }
 
-    if(runnning_flg == false){
-      current_dir[0] = dir[0];
-      current_dir[1] = dir[1];
-      runnning_flg = true;
+      if(precommand == BACK || command == BACK){
+        if(precommand != command) inverse_flg = true;
+      }
+
+      if(inverse_flg){
+        gpio_write(pi, dirpin[0], motor[0][DIR]);
+        gpio_write(pi, dirpin[1], motor[1][DIR]);
+        while(motor[0][SPEED] > LIMIT || motor[1][SPEED] > LIMIT){
+          if(motor[0][SPEED] > LIMIT) motor[0][SPEED] -= 1;
+          if(motor[1][SPEED] > LIMIT) motor[1][SPEED] -= 1;
+
+          hardware_PWM(pi, pwmpin[0], motor[0][SPEED], HALF);
+          hardware_PWM(pi, pwmpin[1], motor[1][SPEED], HALF);
+          delay_ms(50);
+          printf("speed[0]=%d, speed[1]=%d\n", motor[0][SPEED],motor[1][SPEED]);
+        }
+        inverse_flg = false;
+      }
+
+      gpio_write(pi, dirpin[0], dir[0]);
+      gpio_write(pi, dirpin[1], dir[1]);
+      while(motor[0][SPEED] != speed[0] || motor[1][SPEED] != speed[1]){
+        if(motor[0][SPEED] < speed[0]){
+          motor[0][SPEED] += 1;
+        }else if(motor[0][SPEED] > speed[0]){
+          motor[0][SPEED] -= 1;
+        }
+
+        if(motor[1][SPEED] < speed[1]){
+          motor[1][SPEED] += 1;
+        }else if(motor[1][SPEED] > speed[1]){
+          motor[1][SPEED] -= 1;
+        }
+
+        hardware_PWM(pi, pwmpin[0], motor[0][SPEED], HALF);
+        hardware_PWM(pi, pwmpin[1], motor[1][SPEED], HALF);
+        delay_ms(50);
+        
+        printf("speed[0]=%d, speed[1]=%d\n", motor[0][SPEED],motor[1][SPEED]);
+      }
+
+      motor[0][DIR]   = dir[0];
+      motor[1][DIR]   = dir[1];
+      motor[0][SPEED] = speed[0];
+      motor[1][SPEED] = speed[1];
+      precommand = command;
+    }else{
+      if(motor[0][SPEED] > LIMIT || motor[1][SPEED] > LIMIT){
+        while(motor[0][SPEED] > LIMIT || motor[1][SPEED] > LIMIT){
+          if(motor[0][SPEED] < LIMIT){
+            motor[0][SPEED] += 1;
+          }else if(motor[0][SPEED] > LIMIT){
+            motor[0][SPEED] -= 1;
+          }
+
+          if(motor[1][SPEED] < LIMIT){
+            motor[1][SPEED] += 1;
+          }else if(motor[1][SPEED] > LIMIT){
+            motor[1][SPEED] -= 1;
+          }
+          hardware_PWM(pi, pwmpin[0], motor[0][SPEED], HALF);
+          hardware_PWM(pi, pwmpin[1], motor[1][SPEED], HALF);
+          delay_ms(50);
+          
+          printf("speed[0]=%d, speed[1]=%d\n", motor[0][SPEED],motor[1][SPEED]);
+        }
+      }
     }
-
-    gpio_write(pi, dirpin[0], dir[0]);
-    gpio_write(pi, dirpin[1], dir[1]);
-    hardware_PWM(pi, pwmpin[0], speed[0], HALF);
-    hardware_PWM(pi, pwmpin[1], speed[1], HALF);
-
-    current_dir[0]   = dir[0];
-    current_dir[1]   = dir[1];
-    current_speed[0] = speed[0];
-    current_speed[1] = speed[1];
-
-    printf("speed[0]=%d, speed[1]=%d\n", speed[0],speed[1]);
-    printf("dir[0]=%d, dir[1]=%d\n", dir[0],dir[1]);
-
   }
 
   // 出力信号の停止
