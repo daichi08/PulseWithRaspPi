@@ -19,6 +19,7 @@
 //MEMO
 //  frequency: 0(stop) or 1..125000000(125M) [Hz]
 //  duty: 0..1000000(1M) -> 1M = 100[%]
+//  同時駆動は2200[Hz]程度が上限
 //
 
 #include <stdio.h>
@@ -41,9 +42,9 @@
 #define RIGHT 3
 
 //もろもろ
-#define LIMIT 250 //下限[Hz]
+#define LIMIT 190 //下限[Hz]
 #define HALF 500000 //duty50[%]
-#define DELAY 5 //[ms]
+#define DELAY 1 //[ms]
 
 
 int pi;
@@ -65,10 +66,10 @@ int main(int argc, char **argv){
   };
 
   static int command_speed[4][2] = {
-    {2000, 2000}, //前進
-    {500, 500}, //後退
-    {300, 450}, //左回転
-    {450, 300}  //右回転
+    {800, 800}, //前進
+    {800, 800}, //後退
+    {300, 750}, //左回転
+    {750, 300}  //右回転
   };
 
   //現在の回転方向と回転速度をまとめた配列
