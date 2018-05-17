@@ -55,7 +55,6 @@ int main(int argc, char **argv){
   int dir[2]         = {FORWARD,FORWARD};
   int current_dir[2] = {FORWARD,FORWARD};
   int motor_num;
-  bool diff_flg[2] = {false,false};
   char c;
 
   pi = pigpio_start("localhost","8888");
@@ -70,23 +69,20 @@ int main(int argc, char **argv){
     do{
       printf("which motor? 0 or 1 or 2\n");
       scanf("%d", &motor_num);
-    }while(motor_num != 0 && motor_num != 1 && motor_num != 2);
+    }while(motor_num != 0 && motor_num != 1);
+    do{
+      printf("frequency[Hz]?(more equal %d[Hz])\n",LIMIT);
+      scanf("%d", &hz[motor_num]);
+    }while(hz[motor_num] < LIMIT && 4096 < hz[motor_num]);
+    printf("dir? f or r\n");
+    do{
+      c = getchar();
+    }while(c != 'f' && c != 'r' && c != 'q' );
 
-    if(motor_num != 2){
-      do{
-        printf("frequency[Hz]?(more equal %d[Hz])\n",LIMIT);
-        scanf("%d", &hz[motor_num]);
-      }while(hz[motor_num] < LIMIT || 4096 < hz[motor_num]);
-      
-      printf("dir? f or r or q\n");
-      do{
-        c = getchar();
-      }while(c != 'f' && c != 'r' && c != 'q' );
-
-      if (c == 'f') dir[motor_num] = FORWARD;
-      else if (c == 'r') dir[motor_num] = REVERSAL;
-      else break;
-
+    if (c == 'f'){
+      dir[motor_num] = FORWARD;
+    }else if(c == 'r'){
+      dir[motor_num] = REVERSAL;
     }else{
       printf("where to go? a or b or r or l or q\n");
       do{
@@ -116,50 +112,35 @@ int main(int argc, char **argv){
       }
     }
 
-    printf("hz[0] = %d,hz[1] = %d\n", hz[0],hz[1]);
-    printf("dir[0] = %d, dir[1] = %d\n", dir[0],dir[1]);
-    
-    for (int i = 0; i < 2; i++){
-      if (dir[i] != current_dir[i]){
-        diff_flg[i] = true;
+    // 回転方向切替時処理
+    if (dir[motor_num] != current_dir[motor_num]){
+      gpio_write(pi, dirpin[motor_num], current_dir[motor_num]);
+      for (int i = current_hz[motor_num]; i >= LIMIT; --i){
+        printf("%d\n", i);
+        hardware_PWM(pi, pwmpin[motor_num], i, HALF);
+        delay_ms(DELAY);
       }
-    }
-    
-    if(diff_flg[0] == true){
-      gpio_write(pi, dirpin[0], current_dir[0]);
-      hardware_PWM(pi, dirpin[0], current_hz[0], HALF);
-      current_hz[0] -= 1;
-      if(current_hz[0] <= LIMIT) diff_flg[0] = false;
-    }else{
-      if(current_hz[0] < hz[0]){
-        gpio_write(pi, dirpin[0], dir[0]);
-        hardware_PWM(pi, pwmpin[0], current_hz[0], HALF);
-        if(current_hz[0] < hz[0]) current_hz[0] += 1;
-      }else{
-        gpio_write(pi, dirpin[0], dir[0]);
-        hardware_PWM(pi, pwmpin[0], current_hz[0], HALF);
-        if(current_hz[0] > hz[0]) current_hz[0] -= 1;
-      }
+      current_hz[motor_num] = LIMIT;
     }
 
-    if(diff_flg[1] == true){
-      gpio_write(pi, dirpin[1], current_dir[1]);
-      hardware_PWM(pi, dirpin[1], current_hz[1], HALF);
-      current_hz[1] -= 1;
-      if(current_hz[1] <= LIMIT) diff_flg[1] = false;
-    }else{
-      if(current_hz[1] < hz[1]){
-        gpio_write(pi, dirpin[1], dir[1]);
-        hardware_PWM(pi, pwmpin[1], current_hz[1], HALF);
-        if(current_hz[1] < hz[1]) current_hz[1] += 1;
-      }else{
-        gpio_write(pi, dirpin[1], dir[1]);
-        hardware_PWM(pi, pwmpin[1], current_hz[1], HALF);
-        if(current_hz[1] > hz[1]) current_hz[1] -= 1;
-      }
+    // 通常回転時
+    gpio_write(pi, dirpin[motor_num], dir[motor_num]);
+    for (int i = current_hz[motor_num]; i <= hz[motor_num]; ++i){
+      printf("%d\n", i);
+      hardware_PWM(pi, pwmpin[motor_num], i, HALF);
+      delay_ms(DELAY);
     }
+    current_hz[motor_num] = hz[motor_num];
+    current_dir[motor_num] = dir[motor_num];
   }
 
+  if (c == 'q'){
+    for (int i = current_hz[motor_num]; i >= LIMIT; --i){
+      printf("%d\n", i);
+      hardware_PWM(pi, pwmpin[motor_num], i, HALF);
+      delay_ms(DELAY);
+    }
+  }
 
   // 出力信号の停止
   hardware_PWM(pi, pwmpin[0], 0, 0);
