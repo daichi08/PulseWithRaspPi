@@ -65,7 +65,7 @@ int main(int argc, char **argv){
   };
 
   static int command_speed[4][2] = {
-    {500, 500}, //前進
+    {2000, 2000}, //前進
     {500, 500}, //後退
     {300, 450}, //左回転
     {450, 300}  //右回転
@@ -140,7 +140,7 @@ int main(int argc, char **argv){
 
           hardware_PWM(pi, pwmpin[0], motor[0][SPEED], HALF);
           hardware_PWM(pi, pwmpin[1], motor[1][SPEED], HALF);
-          delay_ms(50);
+          delay_ms(DELAY);
           printf("speed[0]=%d, speed[1]=%d\n", motor[0][SPEED],motor[1][SPEED]);
         }
         inverse_flg = false;
@@ -163,7 +163,7 @@ int main(int argc, char **argv){
 
         hardware_PWM(pi, pwmpin[0], motor[0][SPEED], HALF);
         hardware_PWM(pi, pwmpin[1], motor[1][SPEED], HALF);
-        delay_ms(50);
+        delay_ms(DELAY);
         
         printf("speed[0]=%d, speed[1]=%d\n", motor[0][SPEED],motor[1][SPEED]);
       }
@@ -189,7 +189,7 @@ int main(int argc, char **argv){
           }
           hardware_PWM(pi, pwmpin[0], motor[0][SPEED], HALF);
           hardware_PWM(pi, pwmpin[1], motor[1][SPEED], HALF);
-          delay_ms(50);
+          delay_ms(DELAY);
           
           printf("speed[0]=%d, speed[1]=%d\n", motor[0][SPEED],motor[1][SPEED]);
         }
